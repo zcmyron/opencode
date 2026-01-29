@@ -130,4 +130,39 @@ It's very similar to Claude Code in terms of capability. Here are the key differ
 
 ---
 
+## 🚀 Custom Build with Azure EntraID Support
+
+This repository includes a custom build of OpenCode with **Azure EntraID (formerly Azure Active Directory) authentication support** for Azure AI Foundry.
+
+### Key Features Added:
+- ✅ **Azure EntraID Authentication**: Use `DefaultAzureCredential` for key-less authentication
+- ✅ **Azure AI Foundry Support**: Connect to Azure AI Foundry models without API keys
+- ✅ **Dual Provider Support**: Works with both Azure OpenAI and Azure Cognitive Services
+- ✅ **Backward Compatible**: Original API key authentication still works
+
+### Quick Start:
+```bash
+# Clone this custom build
+git clone https://github.com/zcmyron/opencode.git
+cd opencode
+
+# Install dependencies
+bun install
+
+# Build the project
+cd packages/opencode && bun run build
+
+# Use with Azure EntraID
+az login
+export AZURE_RESOURCE_NAME="your-resource"
+./bin/opencode
+```
+
+### Documentation:
+- [INSTALL_GUIDE_ZH.md](INSTALL_GUIDE_ZH.md) - Complete installation guide (Chinese)
+- [AZURE_ENTRAID_SETUP.md](AZURE_ENTRAID_SETUP.md) - Azure EntraID setup guide
+- [README_CUSTOM.md](README_CUSTOM.md) - Custom build quick start
+
+---
+
 **Join our community** [Discord](https://discord.gg/opencode) | [X.com](https://x.com/opencode)
