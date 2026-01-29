@@ -149,8 +149,11 @@ export namespace Provider {
       }
     },
     azure: async () => {
+      const auth = await Auth.get("azure")
+      const useEntraID = auth?.type === "oauth"
+
       return {
-        autoload: false,
+        autoload: useEntraID,
         async getModel(sdk: any, modelID: string, options?: Record<string, any>) {
           if (options?.["useCompletionUrls"]) {
             return sdk.chat(modelID)
@@ -162,9 +165,12 @@ export namespace Provider {
       }
     },
     "azure-cognitive-services": async () => {
+      const auth = await Auth.get("azure-cognitive-services")
       const resourceName = Env.get("AZURE_COGNITIVE_SERVICES_RESOURCE_NAME")
+      const useEntraID = auth?.type === "oauth"
+
       return {
-        autoload: false,
+        autoload: useEntraID,
         async getModel(sdk: any, modelID: string, options?: Record<string, any>) {
           if (options?.["useCompletionUrls"]) {
             return sdk.chat(modelID)

@@ -69,6 +69,7 @@
     "@ai-sdk/togetherai": "1.0.31",
     "@ai-sdk/vercel": "1.0.31",
     "@ai-sdk/xai": "2.0.51",
+    "@azure/identity": "^4.0.0",
     "@clack/prompts": "1.0.0-alpha.1",
     "@gitlab/gitlab-ai-provider": "3.3.1",
     "@hono/standard-validator": "0.1.5",
