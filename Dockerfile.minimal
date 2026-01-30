@@ -1,0 +1,33 @@
+# OpenCode 二次开发版 Dockerfile - 最小版本
+# 使用已安装依赖的项目
+
+FROM oven/bun:1.1-alpine
+
+# 安装运行时依赖
+RUN apk add --no-cache libgcc libstdc++ ripgrep git
+
+WORKDIR /app
+
+# 复制整个项目（包括 node_modules）
+COPY . .
+
+# 设置环境变量
+ENV BUN_RUNTIME_TRANSPILER_CACHE_PATH=0
+ENV NODE_ENV=production
+
+# 创建必要的目录
+RUN mkdir -p /root/.opencode
+
+# 测试基本功能
+RUN cd /app/packages/opencode && bun --version
+
+# 设置工作目录
+WORKDIR /workspace
+
+# 创建启动脚本
+RUN echo '#!/bin/sh' > /usr/local/bin/opencode && \
+    echo 'cd /app/packages/opencode && bun run src/index.ts "$@"' >> /usr/local/bin/opencode && \
+    chmod +x /usr/local/bin/opencode
+
+# 设置入口点
+ENTRYPOINT ["opencode"]

@@ -1,0 +1,33 @@
+# OpenCode 二次开发版 Dockerfile - 最终版
+# 使用已安装依赖的项目
+
+FROM oven/bun:1.1-alpine
+
+# 安装运行时依赖
+RUN apk add --no-cache libgcc libstdc++ ripgrep git
+
+WORKDIR /app
+
+# 复制整个项目（包括 node_modules）
+COPY . .
+
+# 设置环境变量
+ENV BUN_RUNTIME_TRANSPILER_CACHE_PATH=0
+ENV NODE_ENV=production
+
+# 创建必要的目录
+RUN mkdir -p /root/.opencode
+
+# 验证 Azure EntraID 插件存在
+RUN ls -la /app/packages/opencode/src/plugin/azure-entraid.ts && \
+    echo "✅ Azure EntraID 插件已安装"
+
+# 验证依赖
+RUN grep -q "@azure/identity" /app/packages/opencode/package.json && \
+    echo "✅ @azure/identity 依赖已安装"
+
+# 设置工作目录
+WORKDIR /workspace
+
+# 设置默认命令
+CMD ["sh", "-c", "cd /app/packages/opencode && echo 'OpenCode 二次开发版 (支持 Azure EntraID)' && echo '使用方法:' && echo '  docker run -v $(pwd):/workspace -it opencode-custom' && echo '  docker run -v $(pwd):/workspace -it opencode-custom run \"你的消息\"' && echo '' && echo 'Azure EntraID 认证:' && echo '  1. 运行: az login' && echo '  2. 设置: export AZURE_RESOURCE_NAME=xxx' && echo '  3. 连接: /connect -> Azure -> Azure EntraID'"]

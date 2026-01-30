@@ -1,0 +1,57 @@
+# OpenCode 二次开发版完整 Dockerfile
+# 多阶段构建：构建 + 运行
+
+# 阶段1：构建阶段
+FROM oven/bun:1.1-alpine AS builder
+
+# 安装构建依赖
+RUN apk add --no-cache python3 make g++ git
+
+WORKDIR /app
+
+# 复制项目文件
+COPY package.json bun.lock ./
+COPY packages/opencode/package.json ./packages/opencode/
+
+# 安装根依赖
+RUN bun install --frozen-lockfile
+
+# 复制源代码
+COPY . .
+
+# 构建 opencode 包
+WORKDIR /app/packages/opencode
+RUN bun run build
+
+# 阶段2：运行时阶段
+FROM oven/bun:1.1-alpine
+
+# 安装运行时依赖
+RUN apk add --no-cache libgcc libstdc++ ripgrep
+
+WORKDIR /app
+
+# 从构建阶段复制必要的文件
+COPY --from=builder /app/packages/opencode/bin/opencode /usr/local/bin/opencode
+COPY --from=builder /app/packages/opencode/package.json /app/package.json
+COPY --from=builder /app/packages/opencode/node_modules /app/node_modules
+
+# 创建必要的目录
+RUN mkdir -p /root/.opencode
+
+# 设置环境变量
+ENV BUN_RUNTIME_TRANSPILER_CACHE_PATH=0
+ENV NODE_ENV=production
+
+# 验证安装
+RUN opencode --version
+
+# 设置工作目录
+WORKDIR /workspace
+
+# 设置入口点
+ENTRYPOINT ["opencode"]
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD opencode --version || exit 1
