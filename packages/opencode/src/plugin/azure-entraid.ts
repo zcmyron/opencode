@@ -31,7 +31,7 @@ async function getAccessToken(): Promise<string> {
   }
 
   try {
-    const tokenResult = await credential.getToken(SCOPE)
+    const tokenResult = await credential.getToken()
     tokenCache = {
       token: tokenResult.token,
       expiresAt: tokenResult.expiresOnTimestamp || (Date.now() + 60 * 60 * 1000),
@@ -45,6 +45,48 @@ async function getAccessToken(): Promise<string> {
   } catch (error) {
     log.error("failed to acquire Azure EntraID token", { error })
     throw error
+  }
+}
+
+// Common authorize function for both Azure providers
+async function entraIDAuthorize(_inputs?: Record<string, string>) {
+  try {
+    // Test credential acquisition immediately to verify setup
+    const testCredential = new DefaultAzureCredential()
+    await testCredential.getToken()
+
+    log.info("successfully acquired test Azure EntraID token")
+
+    // Return OAuth flow configuration with immediate success callback
+    // DefaultAzureCredential handles token refresh internally, so we use dummy values
+    return {
+      url: "https://login.microsoftonline.com/",
+      instructions: "Azure EntraID authentication using DefaultAzureCredential is configured. Your local Azure credentials (Azure CLI, environment variables, managed identity, etc.) will be used automatically.",
+      method: "auto" as const,
+      callback: async () => {
+        // Token acquisition already tested above, return success with dummy values
+        // The actual token will be acquired dynamically in the loader
+        return {
+          type: "success" as const,
+          refresh: "entra-id-default-credential",
+          access: "entra-id-default-credential",
+          expires: Date.now() + (24 * 60 * 60 * 1000), // 24 hours
+        }
+      },
+    }
+  } catch (error) {
+    log.error("failed to acquire Azure EntraID token during authorization", { error })
+    // Return error state - user needs to configure Azure credentials
+    return {
+      url: "https://learn.microsoft.com/en-us/azure/ai-services/authentication?",
+      instructions: "Azure EntraID authentication failed. Please ensure you have configured Azure credentials using one of the following methods:\n\n1. Azure CLI: az login\n2. Environment Variables: AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET\n3. Managed Identity (when running in Azure)\n4. Visual Studio Code Azure Tools extension\n\nSee https://learn.microsoft.com/en-us/javascript/api/overview/azure/identity-readme?view=azure-node-latest for more details.",
+      method: "auto" as const,
+      callback: async () => {
+        return {
+          type: "failed" as const,
+        }
+      },
+    }
   }
 }
 
@@ -77,31 +119,6 @@ async function entraIDLoader(getAuth: () => Promise<Auth.Info | undefined>) {
 
       return fetch(request, { ...init, headers })
     },
-  }
-}
-
-// Common authorize function for both Azure providers
-async function entraIDAuthorize() {
-  try {
-    // Test credential acquisition
-    const testCredential = new DefaultAzureCredential()
-    const testToken = await testCredential.getToken(SCOPE)
-
-    log.info("successfully acquired test Azure EntraID token")
-
-    // Store a dummy OAuth entry to indicate EntraID auth is configured
-    // DefaultAzureCredential handles token refresh internally
-    return {
-      type: "success" as const,
-      refresh: "entra-id-default-credential",
-      access: "entra-id-default-credential",
-      expires: Date.now() + (24 * 60 * 60 * 1000), // 24 hours
-    }
-  } catch (error) {
-    log.error("failed to acquire Azure EntraID token during authorization", { error })
-    return {
-      type: "failed" as const,
-    }
   }
 }
 
