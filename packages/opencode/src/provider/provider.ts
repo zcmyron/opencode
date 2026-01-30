@@ -6,6 +6,7 @@ import { NoSuchModelError, type Provider as SDK } from "ai"
 import { Log } from "../util/log"
 import { BunProc } from "../bun"
 import { Plugin } from "../plugin"
+import { getEntraIDOptions } from "../plugin/azure-entraid"
 import { ModelsDev } from "./models"
 import { NamedError } from "@opencode-ai/util/error"
 import { Auth } from "../auth"
@@ -123,7 +124,9 @@ export namespace Provider {
       return {
         autoload: false,
         async getModel(sdk: any, modelID: string, _options?: Record<string, any>) {
-          return sdk.responses(modelID)
+          if (sdk.responses) return sdk.responses(modelID)
+          if (sdk.chat) return sdk.chat(modelID)
+          return sdk.languageModel(modelID)
         },
         options: {},
       }
@@ -150,35 +153,47 @@ export namespace Provider {
     },
     azure: async () => {
       const auth = await Auth.get("azure")
-      const useEntraID = auth?.type === "oauth"
+      const envResource = Env.get("AZURE_RESOURCE_NAME")
+      const envKey = Env.get("AZURE_API_KEY")
+      const useEntraID = auth?.type === "oauth" || (envResource && !envKey)
+      const options = useEntraID ? await getEntraIDOptions() : {}
 
       return {
         autoload: useEntraID,
         async getModel(sdk: any, modelID: string, options?: Record<string, any>) {
-          if (options?.["useCompletionUrls"]) {
-            return sdk.chat(modelID)
-          } else {
-            return sdk.responses(modelID)
+          const useCompletion = options?.["useCompletionUrls"] === true
+          if (useCompletion) {
+            if (sdk.chat) return sdk.chat(modelID)
+            return sdk.languageModel(modelID)
           }
+          if (sdk.responses) return sdk.responses(modelID)
+          if (sdk.chat) return sdk.chat(modelID)
+          return sdk.languageModel(modelID)
         },
-        options: {},
+        options,
       }
     },
     "azure-cognitive-services": async () => {
       const auth = await Auth.get("azure-cognitive-services")
       const resourceName = Env.get("AZURE_COGNITIVE_SERVICES_RESOURCE_NAME")
-      const useEntraID = auth?.type === "oauth"
+      const envKey = Env.get("AZURE_COGNITIVE_SERVICES_API_KEY")
+      const useEntraID = auth?.type === "oauth" || (resourceName && !envKey)
+      const base = useEntraID ? await getEntraIDOptions() : {}
 
       return {
         autoload: useEntraID,
         async getModel(sdk: any, modelID: string, options?: Record<string, any>) {
-          if (options?.["useCompletionUrls"]) {
-            return sdk.chat(modelID)
-          } else {
-            return sdk.responses(modelID)
+          const useCompletion = options?.["useCompletionUrls"] === true
+          if (useCompletion) {
+            if (sdk.chat) return sdk.chat(modelID)
+            return sdk.languageModel(modelID)
           }
+          if (sdk.responses) return sdk.responses(modelID)
+          if (sdk.chat) return sdk.chat(modelID)
+          return sdk.languageModel(modelID)
         },
         options: {
+          ...base,
           baseURL: resourceName ? `https://${resourceName}.cognitiveservices.azure.com/openai` : undefined,
         },
       }

@@ -4,7 +4,9 @@
 FROM oven/bun:1.1-alpine
 
 # 安装运行时依赖
-RUN apk add --no-cache libgcc libstdc++ ripgrep git
+RUN sed -i 's/https/http/' /etc/apk/repositories \
+    && apk update \
+    && apk add --no-cache libgcc libstdc++ ripgrep git
 
 WORKDIR /app
 

@@ -1,7 +1,9 @@
 import type { Hooks, PluginInput } from "@opencode-ai/plugin"
 import { Log } from "../util/log"
 import { Auth, OAUTH_DUMMY_KEY } from "../auth"
-import { DefaultAzureCredential } from "@azure/identity"
+import { DefaultAzureCredential, InteractiveBrowserCredential } from "@azure/identity"
+import { Env } from "../env"
+import { Flag } from "../flag/flag"
 
 const log = Log.create({ service: "plugin.azure-entraid" })
 
@@ -13,7 +15,60 @@ interface TokenCache {
 }
 
 let tokenCache: TokenCache | null = null
-let credential: DefaultAzureCredential | null = null
+let credential: DefaultAzureCredential | InteractiveBrowserCredential | null = null
+
+function isCli() {
+  return Flag.OPENCODE_CLIENT === "cli"
+}
+
+function isBrowser() {
+  if (isCli()) return false
+  return typeof window !== "undefined" || typeof document !== "undefined" || typeof navigator !== "undefined"
+}
+
+function getCredential() {
+  if (credential) return credential
+  if (!isBrowser()) {
+    credential = new DefaultAzureCredential()
+    return credential
+  }
+
+  const clientId = Env.get("AZURE_CLIENT_ID")
+  if (!clientId) {
+    throw new Error("AZURE_CLIENT_ID is required for InteractiveBrowserCredential")
+  }
+
+  const tenantId = Env.get("AZURE_TENANT_ID")
+  credential = new InteractiveBrowserCredential({
+    clientId,
+    ...(tenantId ? { tenantId } : {}),
+  })
+  return credential
+}
+
+async function getAccessTokenFromAzureCli(): Promise<string> {
+  const text = await Bun.$`
+    az account get-access-token \
+      --resource https://cognitiveservices.azure.com/ \
+      --query "{accessToken:accessToken,expiresOn:expiresOn}" \
+      -o json
+  `.text()
+  const data = JSON.parse(text)
+  const token = data.accessToken
+  const time = Date.parse(data.expiresOn)
+  const expiresAt = Number.isNaN(time) ? Date.now() + 55 * 60 * 1000 : time
+
+  tokenCache = {
+    token,
+    expiresAt,
+  }
+
+  log.info("acquired Azure CLI token", {
+    expiresAt: new Date(expiresAt).toISOString(),
+  })
+
+  return token
+}
 
 function isTokenExpired(): boolean {
   if (!tokenCache) return true
@@ -26,12 +81,14 @@ async function getAccessToken(): Promise<string> {
     return tokenCache.token
   }
 
-  if (!credential) {
-    credential = new DefaultAzureCredential()
+  if (isCli()) {
+    return getAccessTokenFromAzureCli()
   }
 
+  const active = getCredential()
+
   try {
-    const tokenResult = await credential.getToken()
+    const tokenResult = await active.getToken(SCOPE)
     tokenCache = {
       token: tokenResult.token,
       expiresAt: tokenResult.expiresOnTimestamp || (Date.now() + 60 * 60 * 1000),
@@ -51,9 +108,26 @@ async function getAccessToken(): Promise<string> {
 // Common authorize function for both Azure providers
 async function entraIDAuthorize(_inputs?: Record<string, string>) {
   try {
-    // Test credential acquisition immediately to verify setup
-    const testCredential = new DefaultAzureCredential()
-    await testCredential.getToken()
+    if (isBrowser() && !Env.get("AZURE_CLIENT_ID")) {
+      return {
+        url: "https://learn.microsoft.com/en-us/javascript/api/overview/azure/identity-readme?view=azure-node-latest",
+        instructions:
+          "Azure EntraID in the browser requires AZURE_CLIENT_ID (and optionally AZURE_TENANT_ID). Set these environment variables or use the CLI version with az login.",
+        method: "auto" as const,
+        callback: async () => {
+          return {
+            type: "failed" as const,
+          }
+        },
+      }
+    }
+
+    if (isCli()) {
+      await getAccessTokenFromAzureCli()
+    } else {
+      const testCredential = getCredential()
+      await testCredential.getToken(SCOPE)
+    }
 
     log.info("successfully acquired test Azure EntraID token")
 
@@ -96,21 +170,23 @@ async function entraIDLoader(getAuth: () => Promise<Auth.Info | undefined>) {
   // Check if it's an EntraID OAuth entry (has our dummy refresh token)
   if (auth?.type !== "oauth" || auth.refresh !== "entra-id-default-credential") return {}
 
+  return getEntraIDOptions()
+}
+
+export async function getEntraIDOptions() {
   return {
     apiKey: OAUTH_DUMMY_KEY,
     async fetch(request: RequestInfo | URL, init?: RequestInit) {
-      // Remove dummy API key authorization header
       const headers = new Headers(init?.headers)
       headers.delete("authorization")
       headers.delete("Authorization")
+      headers.delete("api-key")
+      headers.delete("Api-Key")
 
-      // Get fresh token
       const token = await getAccessToken()
 
-      // Add bearer token
       headers.set("Authorization", `Bearer ${token}`)
 
-      // Add Content-Type if not present
       if (!headers.has("Content-Type")) {
         headers.set("Content-Type", "application/json")
       }
