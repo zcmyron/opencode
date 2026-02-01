@@ -155,7 +155,7 @@ export namespace Provider {
       const auth = await Auth.get("azure")
       const envResource = Env.get("AZURE_RESOURCE_NAME")
       const envKey = Env.get("AZURE_API_KEY")
-      const useEntraID = auth?.type === "oauth" || (envResource && !envKey)
+      const useEntraID = auth?.type === "oauth" || Boolean(envResource && !envKey)
       const options = useEntraID ? await getEntraIDOptions() : {}
 
       return {
@@ -177,7 +177,7 @@ export namespace Provider {
       const auth = await Auth.get("azure-cognitive-services")
       const resourceName = Env.get("AZURE_COGNITIVE_SERVICES_RESOURCE_NAME")
       const envKey = Env.get("AZURE_COGNITIVE_SERVICES_API_KEY")
-      const useEntraID = auth?.type === "oauth" || (resourceName && !envKey)
+      const useEntraID = auth?.type === "oauth" || Boolean(resourceName && !envKey)
       const base = useEntraID ? await getEntraIDOptions() : {}
 
       return {
